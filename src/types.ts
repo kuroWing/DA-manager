@@ -47,8 +47,17 @@ export interface TestRecord {
 export type ProfileInput = Omit<Profile, 'id' | 'createdAt' | 'updatedAt'>
 export type TestInput = Omit<TestRecord, 'id' | 'createdAt' | 'updatedAt'>
 
+export interface TestProblem {
+  id: number
+  title: string
+  content: string
+}
+
+export type TestProblemInput = Omit<TestProblem, 'id'>
+
 export interface AppData {
   profiles: Profile[]
   tests: TestRecord[]
   payments: PaymentRecord[]
+  problems: TestProblem[]
 }

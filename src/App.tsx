@@ -2,6 +2,7 @@ import {
   Download,
   Laptop,
   ClipboardList,
+  BookOpen,
   History,
   LogOut,
   Moon,
@@ -16,11 +17,12 @@ import { PaymentAlertBanner } from './components/PaymentAlertBanner'
 import { PaymentHistory } from './components/PaymentHistory'
 import { ProfileManager } from './components/ProfileManager'
 import { TestManager } from './components/TestManager'
+import { TestProblems } from './components/TestProblems'
 import { useStore } from './hooks/useStore'
 import { useTheme } from './hooks/useTheme'
 import { exportData, importData } from './storage'
 
-type Tab = 'profiles' | 'tests' | 'payments'
+type Tab = 'profiles' | 'tests' | 'problems' | 'payments'
 
 export default function App() {
   const [authed, setAuthed] = useState(() => isLoggedIn())
@@ -68,6 +70,7 @@ function Dashboard({
     addTest,
     updateTest,
     deleteTest,
+    updateProblem,
     dueTests,
     duePayments,
   } = useStore()
@@ -125,7 +128,7 @@ function Dashboard({
         const next = importData(text)
         if (
           confirm(
-            `Import ${next.profiles.length} profiles, ${next.tests.length} tests, and ${next.payments.length} payments? This replaces current data.`,
+            `Import ${next.profiles.length} profiles, ${next.tests.length} tests, ${next.payments.length} payments, and ${next.problems.length} problems? This replaces current data.`,
           )
         ) {
           replaceAll(next)
@@ -229,6 +232,13 @@ function Dashboard({
           badge={dueTests.length > 0 ? dueTests.length : undefined}
         />
         <TabButton
+          active={tab === 'problems'}
+          onClick={() => setTab('problems')}
+          icon={<BookOpen size={16} />}
+          label="Test problems"
+          count={data.problems.filter((p) => p.title.trim() || p.content.trim()).length}
+        />
+        <TabButton
           active={tab === 'payments'}
           onClick={() => setTab('payments')}
           icon={<History size={16} />}
@@ -255,6 +265,8 @@ function Dashboard({
             focusId={focusTestId}
             onFocusHandled={() => setFocusTestId(null)}
           />
+        ) : tab === 'problems' ? (
+          <TestProblems problems={data.problems} onUpdate={updateProblem} />
         ) : (
           <PaymentHistory payments={data.payments} onDelete={deletePayment} />
         )}

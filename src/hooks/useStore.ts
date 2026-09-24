@@ -12,6 +12,7 @@ import type {
   Profile,
   ProfileInput,
   TestInput,
+  TestProblemInput,
   TestRecord,
 } from '../types'
 
@@ -121,6 +122,15 @@ export function useStore() {
     }))
   }, [])
 
+  const updateProblem = useCallback((id: number, input: TestProblemInput) => {
+    setData((prev) => ({
+      ...prev,
+      problems: prev.problems.map((p) =>
+        p.id === id ? { ...p, title: input.title, content: input.content } : p,
+      ),
+    }))
+  }, [])
+
   const dueTests = useMemo(
     () =>
       data.tests.filter(
@@ -148,6 +158,7 @@ export function useStore() {
     addTest,
     updateTest,
     deleteTest,
+    updateProblem,
     dueTests,
     duePayments,
   }

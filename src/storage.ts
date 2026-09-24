@@ -1,8 +1,46 @@
-import type { AppData, PaymentMethod, PaymentRecord, Profile, TestRecord } from './types'
+import type {
+  AppData,
+  PaymentMethod,
+  PaymentRecord,
+  Profile,
+  TestProblem,
+  TestRecord,
+} from './types'
 
 const STORAGE_KEY = 'da-manager-data-v1'
+export const PROBLEM_COUNT = 6
 
-const emptyData = (): AppData => ({ profiles: [], tests: [], payments: [] })
+export function emptyProblems(): TestProblem[] {
+  return Array.from({ length: PROBLEM_COUNT }, (_, i) => ({
+    id: i + 1,
+    title: '',
+    content: '',
+  }))
+}
+
+export function normalizeProblems(raw: unknown): TestProblem[] {
+  const base = emptyProblems()
+  if (!Array.isArray(raw)) return base
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const row = item as Partial<TestProblem>
+    const id = Number(row.id)
+    if (!Number.isInteger(id) || id < 1 || id > PROBLEM_COUNT) continue
+    base[id - 1] = {
+      id,
+      title: typeof row.title === 'string' ? row.title : '',
+      content: typeof row.content === 'string' ? row.content : '',
+    }
+  }
+  return base
+}
+
+const emptyData = (): AppData => ({
+  profiles: [],
+  tests: [],
+  payments: [],
+  problems: emptyProblems(),
+})
 
 function normalizeProfile(p: Profile): Profile {
   const paymentDate =
@@ -30,6 +68,7 @@ export function loadData(): AppData {
       payments: Array.isArray(parsed.payments)
         ? (parsed.payments as PaymentRecord[])
         : [],
+      problems: normalizeProblems(parsed.problems),
     }
   } catch {
     return emptyData()
@@ -55,6 +94,7 @@ export function importData(json: string): AppData {
     payments: Array.isArray(parsed.payments)
       ? (parsed.payments as PaymentRecord[])
       : [],
+    problems: normalizeProblems(parsed.problems),
   }
 }
 
