@@ -68,6 +68,7 @@ function Dashboard({
     markProfilePaid,
     deletePayment,
     addTest,
+    addTests,
     updateTest,
     deleteTest,
     updateProblem,
@@ -92,6 +93,14 @@ function Dashboard({
     setTab('tests')
     setFocusTestId(id)
   }, [])
+
+  const sendToTodayTests = useCallback(
+    (inputs: Parameters<typeof addTests>[0]) => {
+      addTests(inputs)
+      setTab('tests')
+    },
+    [addTests],
+  )
 
   const handlePaid = useCallback(
     (profileId: string) => {
@@ -251,9 +260,11 @@ function Dashboard({
         {tab === 'profiles' ? (
           <ProfileManager
             profiles={data.profiles}
+            tests={data.tests}
             onAdd={addProfile}
             onUpdate={updateProfile}
             onDelete={deleteProfile}
+            onSendToTodayTests={sendToTodayTests}
           />
         ) : tab === 'tests' ? (
           <TestManager

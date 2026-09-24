@@ -106,6 +106,18 @@ export function useStore() {
     setData((prev) => ({ ...prev, tests: [test, ...prev.tests] }))
   }, [])
 
+  const addTests = useCallback((inputs: TestInput[]) => {
+    if (inputs.length === 0) return
+    const now = new Date().toISOString()
+    const next = inputs.map((input) => ({
+      ...input,
+      id: uuid(),
+      createdAt: now,
+      updatedAt: now,
+    }))
+    setData((prev) => ({ ...prev, tests: [...next, ...prev.tests] }))
+  }, [])
+
   const updateTest = useCallback((id: string, input: TestInput) => {
     setData((prev) => ({
       ...prev,
@@ -156,6 +168,7 @@ export function useStore() {
     markProfilePaid,
     deletePayment,
     addTest,
+    addTests,
     updateTest,
     deleteTest,
     updateProblem,

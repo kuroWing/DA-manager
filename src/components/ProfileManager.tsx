@@ -1,13 +1,15 @@
-import { Eye, EyeOff, ExternalLink, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { Eye, EyeOff, ExternalLink, Pencil, Plus, Search, Trash2, ClipboardPlus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import {
+  addDays,
   calcNextPayDate,
   daysUntil,
   formatDate,
   formatMoney,
   resolveProfilePayDate,
+  todayISO,
 } from '../storage'
-import type { Profile, ProfileInput } from '../types'
+import type { Profile, ProfileInput, TestInput, TestRecord } from '../types'
 import { Modal } from './Modal'
 import { SortableTh, sortBy, type SortDir } from './SortableTh'
 
@@ -50,16 +52,49 @@ const emptyForm = (): ProfileInput => ({
 
 interface ProfileManagerProps {
   profiles: Profile[]
+  tests: TestRecord[]
   onAdd: (input: ProfileInput) => void
   onUpdate: (id: string, input: ProfileInput) => void
   onDelete: (id: string) => void
+  onSendToTodayTests: (inputs: TestInput[]) => void
+}
+
+function findPendingTest(profile: Profile, tests: TestRecord[]): TestRecord | undefined {
+  const pending = tests.filter((t) => t.status === 'pending')
+  const linkedin = profile.linkedinUrl.trim().toLowerCase()
+  if (linkedin) {
+    const byLinkedIn = pending.find(
+      (t) => t.linkedinUrl.trim().toLowerCase() === linkedin,
+    )
+    if (byLinkedIn) return byLinkedIn
+  }
+  const name = profile.name.trim().toLowerCase()
+  if (!name) return undefined
+  return pending.find((t) => t.profileName.trim().toLowerCase() === name)
+}
+
+function profileToTodayTest(p: Profile): TestInput {
+  const start = todayISO()
+  return {
+    profileName: p.name.trim() || p.country.trim() || 'Unnamed',
+    linkedinUrl: p.linkedinUrl,
+    email: '',
+    startTestDate: start,
+    endTestDate: addDays(start, 3),
+    status: 'pending',
+    result: null,
+    answers: '',
+    notes: '',
+  }
 }
 
 export function ProfileManager({
   profiles,
+  tests,
   onAdd,
   onUpdate,
   onDelete,
+  onSendToTodayTests,
 }: ProfileManagerProps) {
   const [query, setQuery] = useState('')
   const [showPasswords, setShowPasswords] = useState(false)
@@ -69,6 +104,16 @@ export function ProfileManager({
   const [form, setForm] = useState<ProfileInput>(emptyForm())
   const [sortKey, setSortKey] = useState<ProfileSortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  const pendingByProfileId = useMemo(() => {
+    const map = new Map<string, TestRecord>()
+    for (const p of profiles) {
+      const pending = findPendingTest(p, tests)
+      if (pending) map.set(p.id, pending)
+    }
+    return map
+  }, [profiles, tests])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -89,6 +134,57 @@ export function ProfileManager({
       setSortKey(column)
       setSortDir('asc')
     }
+  }
+
+  const filteredIds = useMemo(() => filtered.map((p) => p.id), [filtered])
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selected.has(id))
+  const someFilteredSelected = filteredIds.some((id) => selected.has(id))
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAllFiltered = () => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allFilteredSelected) {
+        for (const id of filteredIds) next.delete(id)
+      } else {
+        for (const id of filteredIds) next.add(id)
+      }
+      return next
+    })
+  }
+
+  const sendSelectedToTodayTests = () => {
+    const chosen = profiles.filter((p) => selected.has(p.id))
+    if (chosen.length === 0) return
+
+    const fresh = chosen.filter((p) => !pendingByProfileId.has(p.id))
+    const skipped = chosen.length - fresh.length
+
+    if (fresh.length === 0) {
+      alert(
+        'All selected profiles already have a pending test. Nothing was added.',
+      )
+      return
+    }
+
+    const message =
+      skipped > 0
+        ? `Add ${fresh.length} profile${fresh.length === 1 ? '' : 's'} to today’s tests? (${skipped} already pending will be skipped.) Check date defaults to 3 days from today.`
+        : `Add ${fresh.length} profile${fresh.length === 1 ? '' : 's'} to today’s tests? Check date defaults to 3 days from today.`
+
+    if (!confirm(message)) return
+
+    onSendToTodayTests(fresh.map(profileToTodayTest))
+    setSelected(new Set())
   }
 
   const openCreate = () => {
@@ -188,17 +284,54 @@ export function ProfileManager({
           {showPasswords ? <EyeOff size={16} /> : <Eye size={16} />}
           {showPasswords ? 'Hide passwords' : 'Show passwords'}
         </button>
+        <button
+          type="button"
+          onClick={sendSelectedToTodayTests}
+          disabled={selected.size === 0}
+          className="btn-primary disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <ClipboardPlus size={16} />
+          Today’s tests
+          {selected.size > 0 ? ` (${selected.size})` : ''}
+        </button>
         <button type="button" onClick={openCreate} className="btn-primary">
           <Plus size={16} />
           Add profile
         </button>
       </div>
 
+      {pendingByProfileId.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-warn-soft px-2.5 py-1 font-semibold text-warn">
+            <span className="h-1.5 w-1.5 rounded-sm bg-warn" />
+            Pending test
+          </span>
+          <span>
+            {pendingByProfileId.size} profile
+            {pendingByProfileId.size === 1 ? '' : 's'} with a pending test (orange).
+            Payment due stays teal.
+          </span>
+        </div>
+      )}
+
       <div className="glass overflow-hidden rounded-[1.35rem]">
         <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
+                <th className="w-10">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someFilteredSelected && !allFilteredSelected
+                    }}
+                    onChange={toggleSelectAllFiltered}
+                    disabled={filtered.length === 0}
+                    aria-label="Select all visible profiles"
+                    className="h-4 w-4 accent-[var(--accent)]"
+                  />
+                </th>
                 <SortableTh label="Country" column="country" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 <SortableTh label="Name" column="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 <SortableTh label="LinkedIn" column="linkedin" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
@@ -213,21 +346,73 @@ export function ProfileManager({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="!py-16 text-center text-ink-muted">
+                  <td colSpan={10} className="!py-16 text-center text-ink-muted">
                     No profiles yet. Add your first laptop profile to get started.
                   </td>
                 </tr>
               ) : (
                 filtered.map((p) => {
                   const visible = showPasswords || revealed.has(p.id)
+                  const pendingTest = pendingByProfileId.get(p.id)
+                  const isSelected = selected.has(p.id)
+                  const testDue = pendingTest
+                    ? daysUntil(pendingTest.endTestDate)
+                    : null
+                  const testDueLabel =
+                    testDue == null
+                      ? null
+                      : testDue < 0
+                        ? `${Math.abs(testDue)}d late`
+                        : testDue === 0
+                          ? 'check today'
+                          : `${testDue}d left`
+
                   return (
-                    <tr key={p.id}>
+                    <tr
+                      key={p.id}
+                      className={
+                        pendingTest
+                          ? '[&>td]:bg-warn-soft/80 dark:[&>td]:bg-warn-soft/35'
+                          : isSelected
+                            ? '[&>td]:bg-accent-soft/50'
+                            : undefined
+                      }
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(p.id)}
+                          aria-label={`Select ${p.name || p.country || 'profile'}`}
+                          className="h-4 w-4 accent-[var(--accent)]"
+                        />
+                      </td>
                       <td>
                         <span className="inline-flex rounded-lg bg-surface px-2 py-1 text-xs font-semibold text-ink-soft">
                           {p.country || '—'}
                         </span>
                       </td>
-                      <td className="font-semibold text-ink">{p.name || '—'}</td>
+                      <td>
+                        <div className="font-semibold text-ink">{p.name || '—'}</div>
+                        {pendingTest && (
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex rounded-md bg-warn px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                              Pending test
+                            </span>
+                            {testDueLabel && (
+                              <span
+                                className={`text-[11px] font-bold ${
+                                  testDue != null && testDue <= 0
+                                    ? 'text-danger'
+                                    : 'text-warn'
+                                }`}
+                              >
+                                {testDueLabel}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td>
                         {p.linkedinUrl ? (
                           <a
@@ -282,11 +467,13 @@ export function ProfileManager({
                             Due — confirm paid
                           </div>
                         )}
-                        {p.paymentDate && daysUntil(p.paymentDate) > 0 && daysUntil(p.paymentDate) <= 3 && (
-                          <div className="mt-0.5 text-[11px] font-bold text-ink-muted">
-                            in {daysUntil(p.paymentDate)}d
-                          </div>
-                        )}
+                        {p.paymentDate &&
+                          daysUntil(p.paymentDate) > 0 &&
+                          daysUntil(p.paymentDate) <= 3 && (
+                            <div className="mt-0.5 text-[11px] font-bold text-ink-muted">
+                              in {daysUntil(p.paymentDate)}d
+                            </div>
+                          )}
                       </td>
                       <td>
                         <div className="flex justify-end gap-1">
