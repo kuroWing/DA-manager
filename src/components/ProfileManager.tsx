@@ -9,6 +9,31 @@ import {
 } from '../storage'
 import type { Profile, ProfileInput } from '../types'
 import { Modal } from './Modal'
+import { SortableTh, sortBy, type SortDir } from './SortableTh'
+
+type ProfileSortKey =
+  | 'country'
+  | 'name'
+  | 'linkedin'
+  | 'anydeskId'
+  | 'password'
+  | 'rentStartDate'
+  | 'payment'
+  | 'paymentDate'
+
+const profileSortGetters: Record<
+  ProfileSortKey,
+  (p: Profile) => string | number | null | undefined
+> = {
+  country: (p) => p.country,
+  name: (p) => p.name,
+  linkedin: (p) => p.linkedinUrl,
+  anydeskId: (p) => p.anydeskId,
+  password: (p) => p.password,
+  rentStartDate: (p) => p.rentStartDate,
+  payment: (p) => p.paymentAmount,
+  paymentDate: (p) => p.paymentDate,
+}
 
 const emptyForm = (): ProfileInput => ({
   country: '',
@@ -42,17 +67,29 @@ export function ProfileManager({
   const [editing, setEditing] = useState<Profile | null>(null)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState<ProfileInput>(emptyForm())
+  const [sortKey, setSortKey] = useState<ProfileSortKey>('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return profiles
-    return profiles.filter((p) =>
-      [p.country, p.name, p.anydeskId, p.linkedinUrl, p.notes]
-        .join(' ')
-        .toLowerCase()
-        .includes(q),
-    )
-  }, [profiles, query])
+    const rows = !q
+      ? profiles
+      : profiles.filter((p) =>
+          [p.country, p.name, p.anydeskId, p.linkedinUrl, p.notes]
+            .join(' ')
+            .toLowerCase()
+            .includes(q),
+        )
+    return sortBy(rows, profileSortGetters[sortKey], sortDir)
+  }, [profiles, query, sortKey, sortDir])
+
+  const onSort = (column: ProfileSortKey) => {
+    if (column === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(column)
+      setSortDir('asc')
+    }
+  }
 
   const openCreate = () => {
     setForm(emptyForm())
@@ -162,14 +199,14 @@ export function ProfileManager({
           <table className="data-table">
             <thead>
               <tr>
-                <th>Country</th>
-                <th>Name</th>
-                <th>LinkedIn</th>
-                <th>AnyDesk ID</th>
-                <th>Password</th>
-                <th>Rent start</th>
-                <th>Payment</th>
-                <th>Next pay</th>
+                <SortableTh label="Country" column="country" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Name" column="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="LinkedIn" column="linkedin" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="AnyDesk ID" column="anydeskId" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Password" column="password" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Rent start" column="rentStartDate" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Payment" column="payment" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Next pay" column="paymentDate" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 <th className="text-right">Actions</th>
               </tr>
             </thead>

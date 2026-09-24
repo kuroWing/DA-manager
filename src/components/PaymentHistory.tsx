@@ -2,6 +2,19 @@ import { Search, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { formatDate, formatMoney } from '../storage'
 import type { PaymentRecord } from '../types'
+import { SortableTh, sortBy, type SortDir } from './SortableTh'
+
+type PaymentSortKey = 'profileName' | 'anydeskId' | 'payDate' | 'amount'
+
+const paymentSortGetters: Record<
+  PaymentSortKey,
+  (p: PaymentRecord) => string | number | null | undefined
+> = {
+  profileName: (p) => p.profileName,
+  anydeskId: (p) => p.anydeskId,
+  payDate: (p) => p.payDate,
+  amount: (p) => p.amount,
+}
 
 interface PaymentHistoryProps {
   payments: PaymentRecord[]
@@ -10,17 +23,29 @@ interface PaymentHistoryProps {
 
 export function PaymentHistory({ payments, onDelete }: PaymentHistoryProps) {
   const [query, setQuery] = useState('')
+  const [sortKey, setSortKey] = useState<PaymentSortKey>('payDate')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return payments
-    return payments.filter((p) =>
-      [p.profileName, p.anydeskId, p.payDate, String(p.amount)]
-        .join(' ')
-        .toLowerCase()
-        .includes(q),
-    )
-  }, [payments, query])
+    const rows = !q
+      ? payments
+      : payments.filter((p) =>
+          [p.profileName, p.anydeskId, p.payDate, String(p.amount)]
+            .join(' ')
+            .toLowerCase()
+            .includes(q),
+        )
+    return sortBy(rows, paymentSortGetters[sortKey], sortDir)
+  }, [payments, query, sortKey, sortDir])
+
+  const onSort = (column: PaymentSortKey) => {
+    if (column === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(column)
+      setSortDir(column === 'payDate' || column === 'amount' ? 'desc' : 'asc')
+    }
+  }
 
   const total = useMemo(
     () => filtered.reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
@@ -53,10 +78,34 @@ export function PaymentHistory({ payments, onDelete }: PaymentHistoryProps) {
           <table className="data-table !min-w-[720px]">
             <thead>
               <tr>
-                <th>Profile name</th>
-                <th>AnyDesk ID</th>
-                <th>Pay date</th>
-                <th>Amount</th>
+                <SortableTh
+                  label="Profile name"
+                  column="profileName"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="AnyDesk ID"
+                  column="anydeskId"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Pay date"
+                  column="payDate"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={onSort}
+                />
+                <SortableTh
+                  label="Amount"
+                  column="amount"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={onSort}
+                />
                 <th className="text-right">Actions</th>
               </tr>
             </thead>

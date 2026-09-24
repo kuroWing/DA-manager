@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { addDays, daysUntil, formatDate, todayISO } from '../storage'
 import type { Profile, TestInput, TestRecord, TestResult, TestStatus } from '../types'
 import { Modal } from './Modal'
+import { SortableTh, sortBy, type SortDir } from './SortableTh'
 
 const emptyForm = (): TestInput => ({
   profileName: '',
@@ -66,6 +67,30 @@ const statusStyles: Record<TestStatus, string> = {
   fresh: 'bg-fresh-soft text-fresh ring-1 ring-sky-200/80',
 }
 
+type TestSortKey =
+  | 'profileName'
+  | 'email'
+  | 'linkedin'
+  | 'startTestDate'
+  | 'endTestDate'
+  | 'status'
+  | 'result'
+  | 'answers'
+
+const testSortGetters: Record<
+  TestSortKey,
+  (t: TestRecord) => string | number | null | undefined
+> = {
+  profileName: (t) => t.profileName,
+  email: (t) => t.email,
+  linkedin: (t) => t.linkedinUrl,
+  startTestDate: (t) => t.startTestDate,
+  endTestDate: (t) => t.endTestDate,
+  status: (t) => t.status,
+  result: (t) => t.result ?? '',
+  answers: (t) => (t.answers.trim() ? 1 : 0),
+}
+
 export function TestManager({
   profiles,
   tests,
@@ -83,6 +108,8 @@ export function TestManager({
   const [form, setForm] = useState<TestInput>(emptyForm())
   const [waitDays, setWaitDays] = useState(3)
   const [selectedProfileId, setSelectedProfileId] = useState('')
+  const [sortKey, setSortKey] = useState<TestSortKey>('endTestDate')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   const sortedProfiles = useMemo(
     () =>
@@ -96,7 +123,7 @@ export function TestManager({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return tests.filter((t) => {
+    const rows = tests.filter((t) => {
       if (statusFilter !== 'all' && t.status !== statusFilter) return false
       if (!q) return true
       return [t.profileName, t.email, t.linkedinUrl, t.notes, t.answers]
@@ -104,7 +131,16 @@ export function TestManager({
         .toLowerCase()
         .includes(q)
     })
-  }, [tests, query, statusFilter])
+    return sortBy(rows, testSortGetters[sortKey], sortDir)
+  }, [tests, query, statusFilter, sortKey, sortDir])
+
+  const onSort = (column: TestSortKey) => {
+    if (column === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(column)
+      setSortDir('asc')
+    }
+  }
 
   const applyProfile = (profileId: string) => {
     setSelectedProfileId(profileId)
@@ -245,14 +281,14 @@ export function TestManager({
           <table className="data-table min-w-[1050px]">
             <thead>
               <tr>
-                <th>Profile</th>
-                <th>Email</th>
-                <th>LinkedIn</th>
-                <th>Start</th>
-                <th>Check by</th>
-                <th>Status</th>
-                <th>Result</th>
-                <th>Answers</th>
+                <SortableTh label="Profile" column="profileName" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Email" column="email" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="LinkedIn" column="linkedin" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Start" column="startTestDate" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Check by" column="endTestDate" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Status" column="status" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Result" column="result" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                <SortableTh label="Answers" column="answers" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 <th className="text-right">Actions</th>
               </tr>
             </thead>
