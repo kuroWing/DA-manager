@@ -30,15 +30,15 @@ export function Modal({ title, onClose, children, wide }: ModalProps) {
       onClick={onClose}
       role="presentation"
     >
-      <div className="flex min-h-full items-start justify-center p-3 sm:items-center sm:p-6">
+      <div className="flex min-h-full justify-center p-3 sm:p-6">
         <div
-          className={`animate-scale-in my-auto flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden rounded-[1.35rem] border border-line-strong bg-panel-solid shadow-[0_24px_80px_-20px_rgba(0,0,0,0.45)] sm:max-h-[calc(100dvh-3rem)] ${wide ? 'max-w-4xl' : 'max-w-2xl'}`}
+          className={`animate-scale-in my-auto w-full rounded-[1.35rem] border border-line-strong bg-panel-solid shadow-[0_24px_80px_-20px_rgba(0,0,0,0.45)] ${wide ? 'max-w-4xl' : 'max-w-2xl'}`}
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-line bg-surface/60 px-5 py-4 sm:px-6">
+          <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-[1.35rem] border-b border-line bg-panel-solid px-5 py-4 sm:px-6">
             <h2
               id="modal-title"
               className="font-display text-lg font-semibold tracking-tight text-ink sm:text-xl"
@@ -54,9 +54,7 @@ export function Modal({ title, onClose, children, wide }: ModalProps) {
               <X size={18} />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6 sm:py-6">
-            {children}
-          </div>
+          <div className="px-5 py-5 sm:px-6 sm:py-6">{children}</div>
         </div>
       </div>
     </div>
