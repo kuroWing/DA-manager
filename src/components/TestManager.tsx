@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { addDays, daysUntil, formatDate, todayISO } from '../storage'
-import type { TestInput, TestRecord, TestResult, TestStatus } from '../types'
+import type { Profile, TestInput, TestRecord, TestResult, TestStatus } from '../types'
 import { Modal } from './Modal'
 
 const emptyForm = (): TestInput => ({
@@ -25,7 +25,33 @@ const emptyForm = (): TestInput => ({
   notes: '',
 })
 
+function profileLabel(p: Profile) {
+  const name = p.name.trim() || 'Unnamed'
+  const bits = [name]
+  if (p.country.trim()) bits.push(p.country.trim())
+  if (p.anydeskId.trim()) bits.push(`AnyDesk ${p.anydeskId.trim()}`)
+  return bits.join(' · ')
+}
+
+function matchProfileId(profiles: Profile[], t: Pick<TestRecord, 'profileName' | 'linkedinUrl'>) {
+  const byLinkedIn = t.linkedinUrl.trim()
+    ? profiles.find(
+        (p) =>
+          p.linkedinUrl.trim() &&
+          p.linkedinUrl.trim().toLowerCase() === t.linkedinUrl.trim().toLowerCase(),
+      )
+    : undefined
+  if (byLinkedIn) return byLinkedIn.id
+  const byName = t.profileName.trim()
+    ? profiles.find(
+        (p) => p.name.trim().toLowerCase() === t.profileName.trim().toLowerCase(),
+      )
+    : undefined
+  return byName?.id ?? ''
+}
+
 interface TestManagerProps {
+  profiles: Profile[]
   tests: TestRecord[]
   onAdd: (input: TestInput) => void
   onUpdate: (id: string, input: TestInput) => void
@@ -41,6 +67,7 @@ const statusStyles: Record<TestStatus, string> = {
 }
 
 export function TestManager({
+  profiles,
   tests,
   onAdd,
   onUpdate,
@@ -55,6 +82,17 @@ export function TestManager({
   const [answersOf, setAnswersOf] = useState<TestRecord | null>(null)
   const [form, setForm] = useState<TestInput>(emptyForm())
   const [waitDays, setWaitDays] = useState(3)
+  const [selectedProfileId, setSelectedProfileId] = useState('')
+
+  const sortedProfiles = useMemo(
+    () =>
+      [...profiles].sort((a, b) =>
+        (a.name || a.country).localeCompare(b.name || b.country, undefined, {
+          sensitivity: 'base',
+        }),
+      ),
+    [profiles],
+  )
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -68,10 +106,25 @@ export function TestManager({
     })
   }, [tests, query, statusFilter])
 
+  const applyProfile = (profileId: string) => {
+    setSelectedProfileId(profileId)
+    const p = profiles.find((x) => x.id === profileId)
+    if (!p) {
+      setForm((prev) => ({ ...prev, profileName: '', linkedinUrl: '' }))
+      return
+    }
+    setForm((prev) => ({
+      ...prev,
+      profileName: p.name.trim() || p.country.trim() || 'Unnamed',
+      linkedinUrl: p.linkedinUrl,
+    }))
+  }
+
   const openCreate = () => {
     const start = todayISO()
     setWaitDays(3)
     setForm({ ...emptyForm(), startTestDate: start, endTestDate: addDays(start, 3) })
+    setSelectedProfileId('')
     setCreating(true)
     setEditing(null)
   }
@@ -88,6 +141,7 @@ export function TestManager({
       answers: t.answers,
       notes: t.notes,
     })
+    setSelectedProfileId(matchProfileId(profiles, t))
     setEditing(t)
     setCreating(false)
   }
@@ -107,18 +161,24 @@ export function TestManager({
       answers: t.answers,
       notes: t.notes,
     })
+    setSelectedProfileId(matchProfileId(profiles, t))
     setEditing(t)
     setCreating(false)
     onFocusHandled()
-  }, [focusId, tests, onFocusHandled])
+  }, [focusId, tests, profiles, onFocusHandled])
 
   const closeForm = () => {
     setCreating(false)
     setEditing(null)
+    setSelectedProfileId('')
   }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form.profileName.trim()) {
+      alert('Select a candidate from Laptops & profiles.')
+      return
+    }
     if (editing) onUpdate(editing.id, form)
     else onAdd(form)
     closeForm()
@@ -329,13 +389,46 @@ export function TestManager({
         <Modal title={editing ? 'Edit test' : 'Add test'} onClose={closeForm} wide>
           <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
             {field(
-              'Profile name',
-              <input
+              'Candidate (from Laptops & profiles)',
+              <select
                 required
                 className={inputClass}
-                value={form.profileName}
-                onChange={(e) => setForm({ ...form, profileName: e.target.value })}
-              />,
+                value={selectedProfileId}
+                onChange={(e) => applyProfile(e.target.value)}
+                disabled={sortedProfiles.length === 0}
+              >
+                <option value="">
+                  {sortedProfiles.length === 0
+                    ? 'No profiles yet — add one under Laptops & profiles'
+                    : 'Select a candidate…'}
+                </option>
+                {sortedProfiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {profileLabel(p)}
+                  </option>
+                ))}
+              </select>,
+              true,
+            )}
+            {selectedProfileId && (
+              <div className="sm:col-span-2 rounded-2xl border border-line bg-surface/60 px-4 py-3 text-sm">
+                <div className="font-semibold text-ink">{form.profileName || '—'}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-ink-soft">
+                  {form.linkedinUrl ? (
+                    <a
+                      href={form.linkedinUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 font-medium text-accent hover:text-accent-deep"
+                    >
+                      LinkedIn
+                      <ExternalLink size={12} />
+                    </a>
+                  ) : (
+                    <span className="text-ink-muted">No LinkedIn on profile</span>
+                  )}
+                </div>
+              </div>
             )}
             {field(
               'Email',
@@ -344,17 +437,8 @@ export function TestManager({
                 className={inputClass}
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="Optional — not stored on profiles"
               />,
-            )}
-            {field(
-              'LinkedIn URL',
-              <input
-                type="url"
-                className={inputClass}
-                value={form.linkedinUrl}
-                onChange={(e) => setForm({ ...form, linkedinUrl: e.target.value })}
-              />,
-              true,
             )}
             {field(
               'Start test date',
@@ -462,7 +546,11 @@ export function TestManager({
               <button type="button" onClick={closeForm} className="btn-ghost">
                 Cancel
               </button>
-              <button type="submit" className="btn-primary">
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={!selectedProfileId}
+              >
                 {editing ? 'Save changes' : 'Add test'}
               </button>
             </div>

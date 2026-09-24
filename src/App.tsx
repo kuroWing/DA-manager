@@ -247,6 +247,7 @@ function Dashboard({
           />
         ) : tab === 'tests' ? (
           <TestManager
+            profiles={data.profiles}
             tests={data.tests}
             onAdd={addTest}
             onUpdate={updateTest}
